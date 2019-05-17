@@ -172,7 +172,7 @@ module KubernetesDeploy
         raise TaskConfigurationError, message
       end
 
-      container.image = image if image
+      container.image = image.first if image
       container.command = entrypoint
       container.args = args
 
