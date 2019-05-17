@@ -102,7 +102,7 @@ module KubernetesDeploy
       kubectl.server_version
     end
 
-    def initialize(namespace:, context:, current_sha:, template_dir:, logger:, context:, kubectl_instance: nil, bindings: {},
+    def initialize(namespace:, context:, current_sha:, template_dir:, logger:, kubectl_instance: nil, bindings: {},
       max_watch_seconds: nil, selector: nil)
       @namespace = namespace
       @namespace_tags = []
