@@ -7,6 +7,7 @@ require 'optparse'
 
 template = "task-runner-template"
 entrypoint = nil
+image = nil
 env_vars = []
 verify_result = true
 max_watch_seconds = nil
@@ -20,6 +21,7 @@ ARGV.options do |opts|
   opts.on("--template=TEMPLATE") { |n| template = n }
   opts.on("--env-vars=ENV_VARS") { |vars| env_vars = vars.split(",") }
   opts.on("--entrypoint=ENTRYPOINT") { |c| entrypoint = [c] }
+  opts.on("--image=IMAGE") { |i| image = [i] }
   opts.parse!
 end
 
@@ -38,6 +40,7 @@ success = runner.run(
   verify_result: verify_result,
   task_template: template,
   entrypoint: entrypoint,
+  image: image,
   args: ARGV[2..-1],
   env_vars: env_vars
 )

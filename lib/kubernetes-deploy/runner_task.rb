@@ -24,13 +24,13 @@ module KubernetesDeploy
       false
     end
 
-    def run!(task_template:, entrypoint:, args:, env_vars: [], verify_result: true)
+    def run!(task_template:, entrypoint:, image:, args:, env_vars: [], verify_result: true)
       start = Time.now.utc
       @logger.reset
 
       @logger.phase_heading("Initializing task")
       validate_configuration(task_template, args)
-      pod = build_pod(task_template, entrypoint, args, env_vars, verify_result)
+      pod = build_pod(task_template, entrypoint, image, args, env_vars, verify_result)
       validate_pod(pod)
 
       @logger.phase_heading("Running pod")
@@ -68,11 +68,11 @@ module KubernetesDeploy
       raise FatalDeploymentError, msg
     end
 
-    def build_pod(template_name, entrypoint, args, env_vars, verify_result)
+    def build_pod(template_name, entrypoint, image, args, env_vars, verify_result)
       task_template = get_template(template_name)
       @logger.info("Using template '#{template_name}'")
       pod_template = build_pod_definition(task_template)
-      set_container_overrides!(pod_template, entrypoint, args, env_vars)
+      set_container_overrides!(pod_template, entrypoint, image, args, env_vars)
       ensure_valid_restart_policy!(pod_template, verify_result)
       Pod.new(namespace: @namespace, context: @context, logger: @logger, stream_logs: true,
                     definition: pod_template.to_hash.deep_stringify_keys, statsd_tags: [])
@@ -164,7 +164,7 @@ module KubernetesDeploy
       pod_definition
     end
 
-    def set_container_overrides!(pod_definition, entrypoint, args, env_vars)
+    def set_container_overrides!(pod_definition, entrypoint, image, args, env_vars)
       container = pod_definition.spec.containers.find { |cont| cont.name == 'task-runner' }
       if container.nil?
         message = "Pod spec does not contain a template container called 'task-runner'"
@@ -172,6 +172,7 @@ module KubernetesDeploy
         raise TaskConfigurationError, message
       end
 
+      container.image = image if image
       container.command = entrypoint
       container.args = args
 
