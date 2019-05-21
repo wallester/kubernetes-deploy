@@ -50,13 +50,17 @@ end
 namespace = ARGV[0]
 context = ARGV[1]
 logger = KubernetesDeploy::FormattedLogger.build(namespace, context, verbose_prefix: verbose_log_prefix)
+revision = ENV.fetch('REVISION') do
+  puts "Using 1 as default Revision"
+  '1'
+end
 
 begin
   KubernetesDeploy::OptionsHelper.with_validated_template_dir(template_dir) do |dir|
     runner = KubernetesDeploy::DeployTask.new(
       namespace: namespace,
       context: context,
-      current_sha: ENV["REVISION"],
+      current_sha: revision,
       template_dir: dir,
       bindings: bindings,
       logger: logger,
