@@ -53,7 +53,7 @@ class KubernetesDeployTest < KubernetesDeploy::IntegrationTest
     hello_cloud.assert_unmanaged_pod_statuses("Succeeded", 1)
     assert_logs_match_all([
       %r{Successfully deployed in \d.\ds: ServiceAccount/build-robot},
-      %r{Successfully deployed in \d.\ds: Pod/unmanaged-pod-.*},
+      %r{Successfully deployed in \d+.\ds: Pod/unmanaged-pod-.*},
     ], in_order: true)
   end
 
@@ -80,7 +80,7 @@ class KubernetesDeployTest < KubernetesDeploy::IntegrationTest
     assert_logs_match_all([
       %r{Successfully deployed in \d.\ds: Role/role},
       %r{Successfully deployed in \d.\ds: RoleBinding/role-binding},
-      %r{Successfully deployed in \d.\ds: Pod/unmanaged-pod-1-.*},
+      %r{Successfully deployed in \d+.\ds: Pod/unmanaged-pod-1-.*},
     ], in_order: true)
   end
 
@@ -598,6 +598,22 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
       %r{Secret\/monitoring-token\s+Available},
       %r{Secret\/unused-secret\s+Available},
     ], in_order: true)
+  end
+
+  def test_ejson_works_with_label_selectors
+    value = "master"
+    selector = KubernetesDeploy::LabelSelector.parse("branch=#{value}")
+    ejson_cloud = FixtureSetAssertions::EjsonCloud.new(@namespace)
+    ejson_cloud.create_ejson_keys_secret
+    assert_deploy_success(deploy_fixtures("ejson-cloud", subset: ["secrets.ejson"], selector: selector))
+    assert_logs_match_all([
+      "Result: SUCCESS",
+      %r{Secret\/catphotoscom\s+Available},
+      %r{Secret\/monitoring-token\s+Available},
+      %r{Secret\/unused-secret\s+Available},
+    ], in_order: true)
+    secret = kubeclient.get_secret('catphotoscom', @namespace)
+    assert_equal(value, secret.metadata.labels.to_h[:branch])
   end
 
   def test_deploy_result_logging_for_mixed_result_deploy
@@ -1357,7 +1373,9 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
 
     assert_logs_match_all([
       "Failed to deploy 1 priority resource",
-      "Pod/pvc: TIMED OUT (timeout: 20s)",
+      "Pod/pvc: TIMED OUT (timeout: 10s)",
+      %r{Pod could not be scheduled because 0/\d+ nodes are available:},
+      /\d+ node[(]s[)] didn't find available persistent volumes to bind./,
     ], in_order: true)
 
   ensure
@@ -1375,7 +1393,7 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
 
     assert_logs_match_all([
       "Failed to deploy 1 priority resource",
-      "PersistentVolumeClaim/with-storage-class: TIMED OUT (timeout: 20s)",
+      "PersistentVolumeClaim/with-storage-class: TIMED OUT (timeout: 10s)",
       "PVC specified a StorageClass of #{storage_class_name} but the resource does not exist",
     ], in_order: true)
   end
