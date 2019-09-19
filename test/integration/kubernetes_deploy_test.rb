@@ -15,7 +15,7 @@ class KubernetesDeployTest < KubernetesDeploy::IntegrationTest
       %r{- Pod/unmanaged-pod-2-[-\w]+ \(timeout: 60s\)}, # annotation timeout override
       "Hello from the command runner!", # unmanaged pod logs
       "Result: SUCCESS",
-      "Successfully deployed 24 resources",
+      "Successfully deployed 25 resources",
     ], in_order: true)
     refute_logs_match(/Using resource selector/)
 
@@ -98,6 +98,7 @@ class KubernetesDeployTest < KubernetesDeploy::IntegrationTest
       prune_matcher("configmap", "", "hello-cloud-configmap-data"),
       prune_matcher("pod", "", "unmanaged-pod-"),
       prune_matcher("service", "", "web"),
+      prune_matcher("service", "", "stateful-busybox"),
       prune_matcher("resourcequota", "", "resource-quotas"),
       prune_matcher("deployment", "extensions", "web"),
       prune_matcher("ingress", "extensions", "web"),
@@ -107,8 +108,13 @@ class KubernetesDeployTest < KubernetesDeploy::IntegrationTest
       prune_matcher("poddisruptionbudget", "policy", "test"),
       prune_matcher("networkpolicy", "networking.k8s.io", "allow-all-network-policy"),
       prune_matcher("secret", "", "hello-secret"),
+      prune_matcher("replicaset", "extensions", "bare-replica-set"),
+      prune_matcher("serviceaccount", "", "build-robot"),
+      prune_matcher("podtemplate", "", "hello-cloud-template-runner"),
+      prune_matcher("role", "rbac.authorization.k8s.io", "role"),
+      prune_matcher("rolebinding", "rbac.authorization.k8s.io", "role-binding"),
     ] # not necessarily listed in this order
-    expected_msgs = [/Pruned 13 resources and successfully deployed 6 resources/]
+    expected_msgs = [/Pruned 19 resources and successfully deployed 6 resources/]
     expected_pruned.map do |resource|
       expected_msgs << /The following resources were pruned:.*#{resource}/
     end
@@ -462,6 +468,21 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
     ])
   end
 
+  def test_deployment_with_timeout_override_deprecated
+    result = deploy_fixtures("long-running", subset: ['undying-deployment.yml.erb']) do |fixtures|
+      deployment = fixtures['undying-deployment.yml.erb']['Deployment'].first
+      deployment['spec']['progressDeadlineSeconds'] = 5
+      deployment["metadata"]["annotations"] = {
+        KubernetesDeploy::KubernetesResource::TIMEOUT_OVERRIDE_ANNOTATION_DEPRECATED => "10S",
+      }
+      container = deployment['spec']['template']['spec']['containers'].first
+      container['readinessProbe'] = { "exec" => { "command" => ['- ls'] } }
+    end
+    assert_deploy_failure(result, :timed_out)
+    assert_logs_match_all(KubernetesDeploy::KubernetesResource::STANDARD_TIMEOUT_MESSAGE.split("\n") +
+      ["timeout override: 10s"])
+  end
+
   def test_deployment_with_timeout_override
     result = deploy_fixtures("long-running", subset: ['undying-deployment.yml.erb']) do |fixtures|
       deployment = fixtures['undying-deployment.yml.erb']['Deployment'].first
@@ -778,6 +799,22 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
     ])
   end
 
+  def test_can_deploy_statefulset_with_zero_replicas
+    result = deploy_fixtures("hello-cloud", subset: ["configmap-data.yml", "stateful_set.yml"]) do |fixtures|
+      stateful = fixtures["stateful_set.yml"]["StatefulSet"].first
+      stateful["spec"]["replicas"] = 0
+    end
+    assert_deploy_success(result)
+
+    pods = kubeclient.get_pods(namespace: @namespace)
+    assert_equal(0, pods.length, "Pods were running from zero-replica deployment")
+
+    assert_logs_match_all([
+      %r{Service/stateful-busybox\s+Doesn't require any endpoint},
+      %r{StatefulSet/stateful-busybox\s+0 replicas},
+    ])
+  end
+
   def test_deploy_successful_with_partial_availability
     result = deploy_fixtures("slow-cloud", sha: "deploy1")
     assert_deploy_success(result)
@@ -800,6 +837,138 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
       pod.status.conditions.any? { |condition| condition["type"] == "Ready" && condition["status"] == "True" }
     end
     assert_equal(1, new_ready_pods.length, "Expected exactly one new pod to be ready, saw #{new_ready_pods.length}")
+  end
+
+  def test_deploy_successful_with_multiple_template_paths
+    result = deploy_dirs(fixture_path("test-partials"), fixture_path("cronjobs"),
+      bindings: { 'supports_partials' => 'yep' })
+    assert_deploy_success(result)
+
+    assert_logs_match_all([
+      %r{ConfigMap/config-for-pod1\s+Available},
+      %r{ConfigMap/config-for-pod2\s+Available},
+      %r{ConfigMap/independent-configmap\s+Available},
+      %r{CronJob/my-cronjob\s+Exists},
+      %r{Deployment/web\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Pod/pod1\s+Succeeded},
+      %r{Pod/pod2\s+Succeeded},
+    ])
+  end
+
+  def test_deploy_successful_with_multiple_template_paths_multiple_partials
+    result = deploy_dirs(fixture_path("test-partials"), fixture_path("test-partials2"),
+      bindings: { 'supports_partials' => 'yep' })
+    assert_deploy_success(result)
+
+    assert_logs_match_all([
+      %r{ConfigMap/config-for-pod1\s+Available},
+      %r{ConfigMap/config-for-pod2\s+Available},
+      %r{ConfigMap/independent-configmap\s+Available},
+      %r{Deployment/web\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Deployment/web-from-partial\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Pod/pod1\s+Succeeded},
+      %r{Pod/pod2\s+Succeeded},
+    ])
+  end
+
+  def test_deploy_successful_partials_with_filename_args
+    partial_file_1 = File.join(fixture_path("test-partials"), "deployment.yaml.erb")
+    partial_file_2 = File.join(fixture_path("test-partials2"), "deployment.yml.erb")
+    result = deploy_dirs(partial_file_1, partial_file_2, bindings: { 'supports_partials' => 'yep' })
+    assert_deploy_success(result)
+
+    assert_logs_match_all([
+      %r{ConfigMap/config-for-pod1\s+Available},
+      %r{ConfigMap/config-for-pod2\s+Available},
+      %r{ConfigMap/independent-configmap\s+Available},
+      %r{Deployment/web\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Deployment/web-from-partial\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Pod/pod1\s+Succeeded},
+      %r{Pod/pod2\s+Succeeded},
+    ])
+  end
+
+  def test_ejson_secrets_are_created_from_multiple_template_paths
+    ejson_cloud = FixtureSetAssertions::EjsonCloud.new(@namespace)
+    ejson_cloud.create_ejson_keys_secret
+
+    result = deploy_dirs(fixture_path("ejson-cloud"), fixture_path("ejson-cloud2"))
+    assert_deploy_success(result)
+
+    assert_logs_match_all([
+      %r{Deployment/web\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Secret/a-secret\s+Available},
+      %r{Secret/catphotoscom\s+Available},
+      %r{Secret/monitoring-token\s+Available},
+      %r{Secret/unused-secret\s+Available},
+    ])
+  end
+
+  def test_deploy_successful_with_filename_arg
+    result = deploy_dirs(File.join(fixture_path("hello-cloud"), "service-account.yml"))
+    assert_deploy_success(result)
+    assert_logs_match_all([
+      "Successfully deployed 1 resource",
+      %r{ServiceAccount/build-robot(\s+)Created},
+    ], in_order: true)
+  end
+
+  def test_deploy_successful_with_both_filename_and_template_dir
+    filepath = File.join(fixture_path("hello-cloud"), "service-account.yml")
+    result = deploy_dirs(filepath, fixture_path("cronjobs"))
+    assert_deploy_success(result)
+    assert_logs_match_all([
+      "Successfully deployed 2 resources",
+      %r{CronJob/my-cronjob(\s+)Exists},
+      %r{ServiceAccount/build-robot(\s+)Created},
+    ], in_order: true)
+  end
+
+  def test_deploy_successful_multiple_filenames_different_directories
+    hello_cloud_file = File.join(fixture_path("hello-cloud"), "service-account.yml")
+    cronjob_file = File.join(fixture_path("cronjobs"), "cronjob.yaml.erb")
+    result = deploy_dirs(hello_cloud_file, cronjob_file)
+    assert_deploy_success(result)
+    assert_logs_match_all([
+      "Successfully deployed 2 resources",
+      %r{CronJob/my-cronjob(\s+)Exists},
+      %r{ServiceAccount/build-robot(\s+)Created},
+    ], in_order: true)
+  end
+
+  def test_deploy_successful_with_filename_arg_requiring_ejson
+    ejson_cloud = FixtureSetAssertions::EjsonCloud.new(@namespace)
+    ejson_cloud.create_ejson_keys_secret
+
+    ejson_path = fixture_path("ejson-cloud")
+    secrets_file = File.join(ejson_path, "secrets.ejson")
+    web_file = File.join(ejson_path, "web.yaml")
+
+    result = deploy_dirs(secrets_file, web_file)
+    assert_deploy_success(result)
+    assert_logs_match_all([
+      %r{Deployment/web\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Secret/catphotoscom\s+Available},
+      %r{Secret/monitoring-token\s+Available},
+      %r{Secret/unused-secret\s+Available},
+    ])
+  end
+
+  def test_only_explicitly_listed_ejson_secrets_deployed_when_specifying_filename_args
+    ejson_cloud = FixtureSetAssertions::EjsonCloud.new(@namespace)
+    ejson_cloud.create_ejson_keys_secret
+
+    web_file = File.join(fixture_path("ejson-cloud2"), "web.yml")
+    ejson_dir = fixture_path("ejson-cloud")
+    result = deploy_dirs(web_file, ejson_dir)
+    assert_deploy_success(result)
+    assert_logs_match_all([
+      %r{Deployment/web\s+1 replica, 1 updatedReplica, 1 availableReplica},
+      %r{Secret/catphotoscom\s+Available},
+      %r{Secret/monitoring-token\s+Available},
+      %r{Secret/unused-secret\s+Available},
+    ])
+    refute_logs_match(%r{Secret/a-secret\s+Available})
   end
 
   def test_deploy_aborts_immediately_if_metadata_name_missing
@@ -902,11 +1071,11 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
 
     assert_deploy_failure(result)
     assert_logs_match_all([
-      "Failed to deploy 1 resource",
+      "Successfully deployed 1 resource and failed to deploy 1 resource",
       "StatefulSet/stateful-busybox: FAILED",
       "app: Crashing repeatedly (exit 1). See logs for more information.",
       "Events (common success events excluded):",
-      %r{\[Pod/stateful-busybox-\d\]	BackOff: Back-off restarting failed container},
+      %r{\[Pod/stateful-busybox-\d\]\tBackOff: Back-off restarting failed container},
       "Logs from container 'app':",
       "ls: /not-a-dir: No such file or directory",
     ], in_order: true)
@@ -1095,7 +1264,7 @@ unknown field \"myKey\" in io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta",
       "Result: FAILURE",
       "Job/hello-job: FAILED",
       "Final status: Failed",
-      %r{\[Job/hello-job\]	DeadlineExceeded: Job was active longer than specified deadline \(\d+ events\)},
+      %r{\[Job/hello-job\]\tDeadlineExceeded: Job was active longer than specified deadline \(\d+ events\)},
     ])
   end
 

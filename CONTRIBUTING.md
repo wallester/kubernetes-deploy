@@ -13,6 +13,7 @@ The following is a set of guidelines for contributing to kubernetes-deploy. Plea
   * [High-level design decisions](#high-level-design-decisions)
   * [Feature acceptance policies](#feature-acceptance-policies)
   * [Adding a new resource type](#contributing-a-new-resource-type)
+  * [Contributor License Agreement](#contributor-license-agreement)
 
 [Development](#development)
   * [Setup](#setup)
@@ -46,7 +47,7 @@ We handle Kubernetes secrets, so it is critical that changes do not cause the co
 
 **Project architecture**
 
-The main interface of this project is our four tasks: `DeployTask`, `RestartTask`, `RunnerTask`, and `RenderTask`. The code in these classes should be high-level abstractions, with implementation details encapsulated in other classes. The public interface of these tasks is a `run` method (and a `run!` equivalent), the body of which should read like a set of phases and steps.
+The main interface of this project is our four tasks: `DeployTask`, `RestartTask`, `RunnerTask`, and `RenderTask`. The code in these classes should be high-level abstractions, with implementation details encapsulated in other classes. The public interface of these tasks is a `run` method (and a `run!` equivalent), the body of which should read like a set of phases and steps. Note that non-task classes are considered internal and we reserve the right to change their API at any time.
 
 An important design principle of the tasks is that they should try to fail fast before touching the cluster if they will not succeed overall. Part of how we achieve this is by separating each task into phases, where the first phase simply gathers information and runs validations to determine what needs to be done and whether that will be able to succeed. In practice, this is the “Initializing <task>” phase for all tasks, plus the “Checking initial resource statuses” phase for DeployTask. Our users should be able to assume that these initial phases never modify their clusters.
 
@@ -105,6 +106,11 @@ This gem uses subclasses of `KubernetesResource` to implement custom success/fai
 6. Add a basic example of the type to the hello-cloud [fixture set](https://github.com/Shopify/kubernetes-deploy/tree/master/test/fixtures/hello-cloud) and appropriate assertions to `#assert_all_up` in [`hello_cloud.rb`](https://github.com/Shopify/kubernetes-deploy/blob/master/test/helpers/fixture_sets/hello_cloud.rb). This will get you coverage in several existing tests, such as `test_full_hello_cloud_set_deploy_succeeds`.
 7. Add tests for any edge cases you foresee.
 
+### Contributor License Agreement
+
+ New contributors will be required to sign [Shopify's Contributor License Agreement (CLA)](https://cla.shopify.com/).
+ There are two versions of the CLA: one for individuals and one for organizations.
+
 # Development
 
 ## Setup
@@ -157,6 +163,6 @@ Please make sure you run the tests locally before submitting your PR (see [Runni
 
 #### Employees: Triggering CI for a contributed PR
 
-Go to the [kubernetes-deploy-gem pipeline](https://buildkite.com/shopify/kubernetes-deploy-gem) and click "New Build". Use branch `external_contrib_ci` and the specific sha of the commit you want to build. Add `BUILDKITE_REFSPEC="refs/pull/${PR_NUM}/head"` in the Environment Variables section. Since CI is only visible to Shopify employees, you will need to provide any failing tests and output to the the contributor.
+Go to the [kubernetes-deploy pipeline](https://buildkite.com/shopify/kubernetes-deploy) and click "New Build". Use branch `external_contrib_ci` and the specific sha of the commit you want to build. Add `BUILDKITE_REFSPEC="refs/pull/${PR_NUM}/head"` in the Environment Variables section. Since CI is only visible to Shopify employees, you will need to provide any failing tests and output to the the contributor.
 
 <img width="350" alt="build external contrib PR" src="https://screenshot.click/2017-11-07--163728_7ovek-wrpwq.png">
