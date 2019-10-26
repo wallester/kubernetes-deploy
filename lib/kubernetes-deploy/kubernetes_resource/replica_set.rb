@@ -37,6 +37,12 @@ module KubernetesDeploy
       !stale_status?
     end
 
+    def crashloopbackoff_pods?
+      pods.present? &&
+      pods.any?(&:crashloopbackoff_containers?) &&
+      !stale_status?
+    end
+
     def desired_replicas
       return -1 unless exists?
       @instance_data["spec"]["replicas"].to_i

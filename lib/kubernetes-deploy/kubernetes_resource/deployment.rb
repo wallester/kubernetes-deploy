@@ -61,6 +61,11 @@ module KubernetesDeploy
       observed_generation == current_generation
     end
 
+    def crashloopbackoff_pods?
+      @latest_rs&.crashloopbackoff_pods? &&
+      observed_generation == current_generation
+    end
+
     def failure_message
       return unless @latest_rs.present?
       "Latest ReplicaSet: #{@latest_rs.name}\n\n#{@latest_rs.failure_message}"
