@@ -4,6 +4,7 @@ require 'shellwords'
 require 'tempfile'
 require 'fileutils'
 
+require 'kubernetes-deploy/restart_task'
 require 'kubernetes-deploy/common'
 require 'kubernetes-deploy/concurrency'
 require 'kubernetes-deploy/resource_cache'
@@ -158,6 +159,8 @@ module KubernetesDeploy
         if !success && failed_resources.all?(&:deploy_timed_out?)
           raise DeploymentTimeoutError
         end
+        # Try restarting failed deployments
+        success = restart_loopback_crashing_deployments(failed_resources) unless success
         raise FatalDeploymentError unless success
       else
         deploy_all_resources(resources, prune: prune, verify: false)
@@ -599,6 +602,23 @@ module KubernetesDeploy
         success = yield
         break if success
         retried += 1
+      end
+    end
+
+    def restart_loopback_crashing_deployments(resources)
+      restartable_resources = []
+      resources.each do |res|
+        next unless res.is_a?(KubernetesDeploy::Deployment)
+        next unless res.crashloopbackoff_pods?
+        restartable_resources << res.name
+      end
+      if restartable_resources.any?
+        @logger.error("Resources include Deployment with CrashLoopBackOff, trying to restart.")
+        @logger.phase_heading("Restart resources in CrashLoopBackOff limbo")
+        restart_task = KubernetesDeploy::RestartTask.new(namespace: @namespace, context: @context, logger: @logger)
+        restart_task.run!(restartable_resources, reset_logger: false, include_summary: false)
+        # This is only executed if above run succeeds, otherwise the above raises and Exception.
+        return true
       end
     end
   end

@@ -37,9 +37,9 @@ module KubernetesDeploy
     end
     alias_method :perform, :run
 
-    def run!(deployments_names = nil, selector: nil, verify_result: true)
+    def run!(deployments_names = nil, selector: nil, verify_result: true, reset_logger: true, include_summary: true)
       start = Time.now.utc
-      @logger.reset
+      @logger.reset if reset_logger
 
       @logger.phase_heading("Initializing restart")
       verify_config!
@@ -57,15 +57,15 @@ module KubernetesDeploy
         @logger.summary.add_paragraph(ColorizedString.new(warning).yellow)
       end
       StatsD.distribution('restart.duration', StatsD.duration(start), tags: tags('success', deployments))
-      @logger.print_summary(:success)
+      @logger.print_summary(:success) if include_summary
     rescue DeploymentTimeoutError
       StatsD.distribution('restart.duration', StatsD.duration(start), tags: tags('timeout', deployments))
-      @logger.print_summary(:timed_out)
+      @logger.print_summary(:timed_out) if include_summary
       raise
     rescue FatalDeploymentError => error
       StatsD.distribution('restart.duration', StatsD.duration(start), tags: tags('failure', deployments))
       @logger.summary.add_action(error.message) if error.message != error.class.to_s
-      @logger.print_summary(:failure)
+      @logger.print_summary(:failure) if include_summary
       raise
     end
     alias_method :perform!, :run!

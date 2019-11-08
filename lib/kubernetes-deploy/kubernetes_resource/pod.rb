@@ -92,6 +92,10 @@ module KubernetesDeploy
       "#{phase_failure_message} #{container_problems}".strip.presence
     end
 
+    def crashloopbackoff_containers?
+      @containers.any?(&:crashloopbackoff?)
+    end
+
     def fetch_debug_logs
       logs.sync
       logs
@@ -231,6 +235,10 @@ module KubernetesDeploy
         elsif limbo_reason == "CreateContainerConfigError"
           "Failed to generate container configuration: #{limbo_message}"
         end
+      end
+
+      def crashloopbackoff?
+        @status.dig("state", "waiting", "reason") == "CrashLoopBackOff"
       end
 
       def readiness_fail_reason
