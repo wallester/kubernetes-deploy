@@ -22,19 +22,19 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = %w(lib)
 
-  spec.required_ruby_version = '>= 2.3.0'
-  spec.add_dependency("activesupport", ">= 5.0")
-  spec.add_dependency("kubeclient", "~> 4.3")
-  spec.add_dependency("googleauth", "~> 0.8.0")
-  spec.add_dependency("ejson", "~> 1.0")
-  spec.add_dependency("colorize", "~> 0.8")
-  spec.add_dependency("statsd-instrument", '~> 2.3', '>= 2.3.2')
-  spec.add_dependency("oj", "~> 3.0")
-  spec.add_dependency("concurrent-ruby", "~> 1.1")
-  spec.add_dependency("jsonpath", "~> 0.9.6")
-  spec.add_dependency("thor", "~>  0.20.3")
+  spec.required_ruby_version = '>= 2.6.0'
+  spec.add_runtime_dependency("activesupport", "~> 5.0")
+  spec.add_runtime_dependency("kubeclient", "~> 4.3")
+  spec.add_runtime_dependency("googleauth", "~> 0.8.0")
+  spec.add_runtime_dependency("ejson", "~> 1.0")
+  spec.add_runtime_dependency("colorize", "~> 0.8")
+  spec.add_runtime_dependency("statsd-instrument", '~> 2.3', '>= 2.3.2')
+  spec.add_runtime_dependency("oj", "~> 3.0")
+  spec.add_runtime_dependency("concurrent-ruby", "~> 1.1")
+  spec.add_runtime_dependency("jsonpath", "~> 0.9.6")
+  spec.add_runtime_dependency("thor", "~>  0.20.3")
 
-  spec.add_development_dependency("bundler")
+  spec.add_development_dependency("bundler", "~> 0")
   spec.add_development_dependency("rake", "~> 10.0")
   spec.add_development_dependency("minitest", "~> 5.0")
   spec.add_development_dependency("minitest-stub-const", "~> 0.6")
