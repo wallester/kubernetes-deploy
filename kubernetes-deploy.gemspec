@@ -23,7 +23,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = %w(lib)
 
   spec.required_ruby_version = '>= 3.2.2'
-  spec.add_runtime_dependency("activesupport", "~> 7.1.3")
+  spec.add_runtime_dependency("activesupport", "7.0.8")
   spec.add_runtime_dependency("kubeclient", "~> 4.11")
   spec.add_runtime_dependency("googleauth", "~> 1.8.1")
   spec.add_runtime_dependency("ejson", "~> 1.0")
