@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     kubernetes-deploy (0.27.1)
-      activesupport (~> 7.1.3)
+      activesupport (= 7.0.8)
       colorize (~> 1.1.0)
       concurrent-ruby (~> 1.1)
       ejson (~> 1.0)
@@ -16,22 +16,15 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    activesupport (7.1.3.2)
-      base64
-      bigdecimal
+    activesupport (7.0.8)
       concurrent-ruby (~> 1.0, >= 1.0.2)
-      connection_pool (>= 2.2.5)
-      drb
       i18n (>= 1.6, < 2)
       minitest (>= 5.1)
-      mutex_m
       tzinfo (~> 2.0)
     addressable (2.8.5)
       public_suffix (>= 2.0.2, < 6.0)
     ansi (1.5.0)
     ast (2.4.2)
-    base64 (0.2.0)
-    bigdecimal (3.1.7)
     builder (3.2.4)
     byebug (11.1.3)
     codecov (0.6.0)
@@ -39,13 +32,11 @@ GEM
     coderay (1.1.3)
     colorize (1.1.0)
     concurrent-ruby (1.2.2)
-    connection_pool (2.4.1)
     crack (0.4.5)
       rexml
     docile (1.4.0)
     domain_name (0.5.20190701)
       unf (>= 0.0.5, < 1.0.0)
-    drb (2.2.1)
     ejson (1.4.1)
     faraday (0.17.6)
       multipart-post (>= 1.2, < 3)
@@ -96,7 +87,6 @@ GEM
     mocha (1.16.1)
     multi_json (1.15.0)
     multipart-post (2.3.0)
-    mutex_m (0.2.0)
     netrc (0.11.0)
     oj (3.14.2)
     os (1.1.4)
